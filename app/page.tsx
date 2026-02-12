@@ -1,65 +1,163 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import axios from "axios";
+import GameCard from "./components/GameCard";
+import { useRouter } from "next/navigation";
+
+
+interface Game {
+  id: number;
+  title: string;
+  platform: string;
+  genre: string;
+  releaseDate: string;
+  favorite: boolean;
+  cover?: string;
+}
+
+export default function HomePage() {
+  const [games, setGames] = useState<Game[]>([]);
+  const [platformFilter, setPlatformFilter] = useState("");
+  const [genreFilter, setGenreFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [gameToDelete, setGameToDelete] = useState<number | null>(null);
+  const router = useRouter();
+
+  // Cargar juego desde la API
+  const fetchGames = async () => {
+    try {
+      const res = await axios.get("/api/games");
+      setGames(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchGames();
+  }, []);
+
+  // Favorito
+  const toggleFavorite = async (id: number) => {
+    const game = games.find(g => g.id === id);
+    if (!game) return;
+    await axios.put(`/api/games/${id}`, { favorite: !game.favorite });
+    fetchGames();
+  };
+
+  // Eliminar
+  const confirmDelete = (id: number) => {
+    setGameToDelete(id);
+  };
+  
+  const handleDelete = async () => {
+    if (gameToDelete === null) return;
+    await axios.delete(`/api/games/${gameToDelete}`);
+    setGameToDelete(null);
+    fetchGames();
+  }
+
+  // Filtros
+  const filteredGames = games.filter(game => {
+    const platformMatch = platformFilter ? game.platform === platformFilter : true;
+    const genreMatch = genreFilter ? game.genre === genreFilter : true;
+    const searchMatch = game.title
+      .toLowerCase()
+      .includes(search.toLowerCase());
+    return platformMatch && genreMatch && searchMatch;
+  })
+
+  // Valores únicos para los filtros
+  const platforms = [...new Set(games.map(g => g.platform))];
+  const genres = [...new Set(games.map(g => g.genre))];
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <main className="p-6 max-w-7xl mx-auto">
+      <div className="flex flex-wrap gap-30 mb-8">
+        <h1 className="text-4xl font-bold mb-6">Colección de videojuegos</h1>
+        <p className="text-gray-900 mb-4">
+          Mostrando {filteredGames.length} {filteredGames.length === 1 ? "juego" : "juegos"}
+        </p>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-4 mb-8">
+        <select
+          className="bg-gray-700 text-white p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+          value={platformFilter}
+          onChange={e => setPlatformFilter(e.target.value)}
+        >
+          <option value="">Todas las plataformas</option>
+          {platforms.map(platform => (
+            <option key={platform} value={platform}>
+              {platform}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="bg-gray-700 text-white p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+          value={genreFilter}
+          onChange={e => setGenreFilter(e.target.value)}
+        >
+          <option value="">Todos los géneros</option>
+          {genres.map(genre => (
+            <option key={genre} value={genre}>
+              {genre}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <input 
+        type="text" 
+        placeholder="Buscar juego..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="mb-6 w-full p-3 rounded-lg bg-gray-800 border border-gray-700 focus:outline-none focus:border-blue-500"
+      />
+
+      {/* Grid de juegos */}
+      {filteredGames.length === 0 ? (
+        <p className="text-gray-400">No hay juegos para mostrar</p>
+      ) : (
+        <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {filteredGames.map(game => (
+            <GameCard
+              key={game.id}
+              {...game}
+              onFavoriteToggle={() => toggleFavorite(game.id)}
+              onDelete={() => confirmDelete(game.id)}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          ))}
         </div>
-      </main>
-    </div>
+      )}
+
+      {/* Modal eliminar */}
+      {gameToDelete !== null && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-gray-900 p-6 rounded-xl shadow-xl w-80">
+            <h2 className="text-xl font-bold mb-4 text-white">
+              Eliminar juego?
+            </h2>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setGameToDelete(null)}
+                className="px-4 py-2 bg-gray-700 text-white rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
